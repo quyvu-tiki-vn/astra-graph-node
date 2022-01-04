@@ -1,5 +1,6 @@
 use graph::blockchain::block_stream::FirehoseCursor;
 use graph::data::graphql::ext::TypeDefinitionExt;
+use graph::data::query::QueryTarget;
 use graph::data::subgraph::schema::DeploymentCreate;
 use graph_chain_ethereum::{Mapping, MappingABI};
 use graph_mock::MockMetricsRegistry;
@@ -1402,7 +1403,10 @@ fn throttle_subscription_delivers() {
                 &*LOGGER,
                 store
                     .clone()
-                    .query_store(deployment.hash.clone().into(), true)
+                    .query_store(
+                        QueryTarget::Deployment(deployment.hash.clone().into(), Default::default()),
+                        true,
+                    )
                     .await
                     .unwrap(),
                 Duration::from_millis(500),
@@ -1444,7 +1448,10 @@ fn throttle_subscription_throttles() {
                 &*LOGGER,
                 store
                     .clone()
-                    .query_store(deployment.hash.clone().into(), true)
+                    .query_store(
+                        QueryTarget::Deployment(deployment.hash.clone(), Default::default()),
+                        true,
+                    )
                     .await
                     .unwrap(),
                 Duration::from_secs(30),
@@ -1487,7 +1494,7 @@ fn subgraph_schema_types_have_subgraph_id_directive() {
     run_test(|store, _, deployment| async move {
         let schema = store
             .subgraph_store()
-            .api_schema(&deployment.hash)
+            .api_schema(&deployment.hash, &Default::default())
             .expect("test subgraph should have a schema");
         for typedef in schema
             .definitions()

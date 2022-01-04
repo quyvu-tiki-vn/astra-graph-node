@@ -5,9 +5,10 @@ use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use graph::blockchain::block_stream::FirehoseCursor;
 use graph::components::store::{EntityType, StoredDynamicDataSource};
+use graph::components::versions::VERSIONS;
 use graph::data::subgraph::{status, SPEC_VERSION_0_0_6};
 use graph::prelude::{
-    tokio, CancelHandle, CancelToken, CancelableError, EntityOperation, PoolWaitStats,
+    tokio, ApiVersion, CancelHandle, CancelToken, CancelableError, EntityOperation, PoolWaitStats,
     SubgraphDeploymentEntity,
 };
 use graph::semver::Version;
@@ -64,7 +65,7 @@ pub(crate) struct SubgraphInfo {
     /// The schema as supplied by the user
     pub(crate) input: Arc<Schema>,
     /// The schema we derive from `input` with `graphql::schema::api::api_schema`
-    pub(crate) api: Arc<ApiSchema>,
+    pub(crate) api: HashMap<ApiVersion, Arc<ApiSchema>>,
     /// The block number at which this subgraph was grafted onto
     /// another one. We do not allow reverting past this block
     pub(crate) graft_block: Option<BlockNumber>,
@@ -264,7 +265,12 @@ impl DeploymentStore {
         // if that's Fred the Dog, Fred the Cat or both.
         //
         // This assumes that there are no concurrent writes to a subgraph.
-        let schema = self.subgraph_info_with_conn(conn, &layout.site)?.api;
+        let schema = self
+            .subgraph_info_with_conn(conn, &layout.site)?
+            .api
+            .get(&Default::default())
+            .expect("API schema should be present")
+            .clone();
         let types_for_interface = schema.types_for_interface();
         let entity_type = key.entity_type.to_string();
         let types_with_shared_interface = Vec::from_iter(
@@ -552,10 +558,16 @@ impl DeploymentStore {
 
         // Generate an API schema for the subgraph and make sure all types in the
         // API schema have a @subgraphId directive as well
-        let mut schema = input_schema.clone();
-        schema.document =
-            api_schema(&schema.document).map_err(|e| StoreError::Unknown(e.into()))?;
-        schema.add_subgraph_id_directives(site.deployment.clone());
+        let mut api: HashMap<ApiVersion, Arc<ApiSchema>> = HashMap::new();
+
+        for version in VERSIONS.iter() {
+            let api_version = ApiVersion::from_version(version).expect("Invalid API version");
+            let mut schema = input_schema.clone();
+            schema.document =
+                api_schema(&schema.document).map_err(|e| StoreError::Unknown(e.into()))?;
+            schema.add_subgraph_id_directives(site.deployment.clone());
+            api.insert(api_version, Arc::new(ApiSchema::from_api_schema(schema)?));
+        }
 
         let spec_version = Version::from_str(&spec_version).map_err(anyhow::Error::from)?;
         let poi_version = if spec_version.ge(&SPEC_VERSION_0_0_6) {
@@ -566,7 +578,7 @@ impl DeploymentStore {
 
         let info = SubgraphInfo {
             input: Arc::new(input_schema),
-            api: Arc::new(ApiSchema::from_api_schema(schema)?),
+            api,
             graft_block,
             debug_fork,
             description,
