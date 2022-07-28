@@ -7,7 +7,6 @@ use crate::subgraph::metrics::{
 use crate::subgraph::runner::SubgraphRunner;
 use crate::subgraph::SubgraphInstance;
 use graph::blockchain::block_stream::BlockStreamMetrics;
-use graph::blockchain::DataSource;
 use graph::blockchain::NodeCapabilities;
 use graph::blockchain::{Blockchain, DataSourceTemplate};
 use graph::blockchain::{BlockchainKind, TriggerFilter};
@@ -165,7 +164,7 @@ impl<S: SubgraphStore> SubgraphInstanceManager<S> {
             let manifest_idx_and_name: Vec<(u32, String)> = manifest
                 .data_sources
                 .iter()
-                .map(|ds: &C::DataSource| ds.name().to_owned())
+                .map(|ds| ds.name().to_owned())
                 .chain(
                     manifest
                         .templates
@@ -199,7 +198,12 @@ impl<S: SubgraphStore> SubgraphInstanceManager<S> {
             (manifest, manifest_idx_and_name)
         };
 
-        let required_capabilities = C::NodeCapabilities::from_data_sources(&manifest.data_sources);
+        let onchain_data_sources = manifest
+            .data_sources
+            .iter()
+            .filter_map(|d| d.as_onchain().cloned())
+            .collect::<Vec<_>>();
+        let required_capabilities = C::NodeCapabilities::from_data_sources(&onchain_data_sources);
         let network = manifest.network_name();
 
         let chain = self
@@ -209,7 +213,7 @@ impl<S: SubgraphStore> SubgraphInstanceManager<S> {
             .clone();
 
         // Obtain filters from the manifest
-        let mut filter = C::TriggerFilter::from_data_sources(manifest.data_sources.iter());
+        let mut filter = C::TriggerFilter::from_data_sources(onchain_data_sources.iter());
 
         if self.static_filters {
             filter.extend_with_template(manifest.templates.clone().into_iter());
