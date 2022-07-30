@@ -8,6 +8,7 @@ use graph::{
         subgraph::{MappingError, ProofOfIndexingEvent, SharedProofOfIndexing},
     },
     data::store::scalar::Bytes,
+    data_source,
     prelude::{
         anyhow, async_trait, BigDecimal, BigInt, BlockNumber, BlockState, Entity, EntityKey,
         RuntimeHostBuilder, Value,
@@ -15,6 +16,7 @@ use graph::{
     slog::Logger,
 };
 use graph_core::SubgraphInstanceMetrics;
+use graph_runtime_wasm::module::ToAscPtr;
 use lazy_static::__Deref;
 
 use crate::{
@@ -31,7 +33,7 @@ impl blockchain::TriggerData for TriggerData {
     }
 }
 
-impl blockchain::MappingTrigger for TriggerData {
+impl ToAscPtr for TriggerData {
     // substreams doesn't rely on wasm on the graph-node so this is not needed.
     fn to_asc_ptr<H: graph::runtime::AscHeap>(
         self,
@@ -133,7 +135,7 @@ where
         logger: &Logger,
         _hosts: &[Arc<T::Host>],
         block: &Arc<Block>,
-        _trigger: &TriggerData,
+        _trigger: &data_source::TriggerData<Chain>,
         mut state: BlockState<Chain>,
         proof_of_indexing: &SharedProofOfIndexing,
         causality_region: &str,
