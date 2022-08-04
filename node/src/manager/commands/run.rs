@@ -69,9 +69,14 @@ pub async fn run(
         Arc::new(EnvVars::default()),
     ));
 
-    let eth_networks = create_ethereum_networks(logger.clone(), metrics_registry.clone(), &config)
-        .await
-        .expect("Failed to parse Ethereum networks");
+    let eth_networks = create_ethereum_networks(
+        logger.clone(),
+        metrics_registry.clone(),
+        &config,
+        &network_name,
+    )
+    .await
+    .expect("Failed to parse Ethereum networks");
     let firehose_networks_by_kind =
         create_firehose_networks(logger.clone(), metrics_registry.clone(), &config)
             .await
@@ -346,14 +351,16 @@ async fn create_ethereum_networks(
     logger: Logger,
     registry: Arc<dyn MetricsRegistryTrait>,
     config: &Config,
+    network_name: &str,
 ) -> Result<EthereumNetworks, anyhow::Error> {
     let eth_rpc_metrics = Arc::new(ProviderEthRpcMetrics::new(registry));
     let mut parsed_networks = EthereumNetworks::new();
-    for (name, chain) in &config.chains.chains {
-        if chain.protocol != BlockchainKind::Ethereum {
-            continue;
-        }
-
+    let chain = config
+        .chains
+        .chains
+        .get(network_name)
+        .ok_or_else(|| anyhow!("unknown network {}", network_name))?;
+    if chain.protocol == BlockchainKind::Ethereum {
         for provider in &chain.providers {
             if let ProviderDetails::Web3(web3) = &provider.details {
                 let capabilities = web3.node_capabilities();
@@ -377,7 +384,7 @@ async fn create_ethereum_networks(
                 let supports_eip_1898 = !web3.features.contains("no_eip1898");
 
                 parsed_networks.insert(
-                    name.to_string(),
+                    network_name.to_string(),
                     capabilities,
                     Arc::new(
                         graph_chain_ethereum::EthereumAdapter::new(
