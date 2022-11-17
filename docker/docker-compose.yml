@@ -18,6 +18,7 @@ services:
       postgres_db: graph-node
       ipfs: 'ipfs:5001'
       ethereum: 'astra:https://rpc.astranaut.dev'
+      GRAPH_ETHEREUM_GENESIS_BLOCK_NUMBER: 3222228
       GRAPH_LOG: info
   ipfs:
     image: ipfs/go-ipfs:v0.10.0
