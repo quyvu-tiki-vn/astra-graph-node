@@ -33,8 +33,6 @@ workflows:
   jenkins_pipeline:
     jobs:
       - build_docker:
-          requires:
-            - build
           filters:
             branches:
               only:
