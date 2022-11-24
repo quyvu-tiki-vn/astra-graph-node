@@ -90,3 +90,4 @@ RUN apt-get update \
 
 COPY docker/Dockerfile /Dockerfile
 COPY docker/bin/* /usr/local/bin/
+CMD start
